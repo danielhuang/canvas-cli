@@ -2,6 +2,7 @@ mod api;
 mod config;
 
 use crate::api::{CanvasAssignment, CanvasCourse};
+use crate::config::Exclusion;
 use anyhow::{Context, Result};
 use backoff::{future::FutureOperation as _, Error, ExponentialBackoff};
 use chrono::{DateTime, Local};
@@ -82,14 +83,24 @@ async fn main() -> Result<()> {
 
     let all_courses: Vec<CanvasCourse> = fetch("/api/v1/courses?enrollment_state=active").await?;
 
-    let all_assignments = try_join_all(all_courses.into_iter().map(|x| async move {
-        fetch::<Vec<CanvasAssignment>>(&format!(
-            "/api/v1/courses/{}/assignments?per_page=1000&include=submission",
-            x.id
-        ))
-        .await
-        .map(|c| (x, c))
-    }))
+    let all_assignments = try_join_all(
+        all_courses
+            .into_iter()
+            .filter(|x| {
+                !CONFIG.exclude.iter().any(|y| match y {
+                    Exclusion::ByClassId { class_id } => class_id == &x.id,
+                    _ => false,
+                })
+            })
+            .map(|x| async move {
+                fetch::<Vec<CanvasAssignment>>(&format!(
+                    "/api/v1/courses/{}/assignments?per_page=1000&include=submission",
+                    x.id
+                ))
+                .await
+                .map(|c| (x, c))
+            }),
+    )
     .await?;
 
     let mut all_assignments: Vec<_> = all_assignments

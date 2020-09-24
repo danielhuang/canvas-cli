@@ -6,6 +6,14 @@ use std::fs::read_to_string;
 pub struct Config {
     pub canvas_url: String,
     pub token: String,
+    #[serde(default)]
+    pub exclude: Vec<Exclusion>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Exclusion {
+    ByClassId { class_id: i64 },
 }
 
 pub fn read_config() -> Config {
