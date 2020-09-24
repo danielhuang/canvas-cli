@@ -82,7 +82,7 @@ async fn main() -> Result<()> {
 
     let all_courses: Vec<CanvasCourse> = fetch("/api/v1/courses?enrollment_state=active").await?;
 
-    let all_assignments: Vec<_> = try_join_all(all_courses.into_iter().map(|x| async move {
+    let all_assignments = try_join_all(all_courses.into_iter().map(|x| async move {
         fetch::<Vec<CanvasAssignment>>(&format!(
             "/api/v1/courses/{}/assignments?per_page=1000&include=submission",
             x.id
@@ -109,7 +109,7 @@ async fn main() -> Result<()> {
                     println!(
                         "{}",
                         format!(
-                            "Due {} - {} {}",
+                            "Due {} - {}{}",
                             if due < now {
                                 format_datetime(due).red().bold()
                             } else {
@@ -117,7 +117,7 @@ async fn main() -> Result<()> {
                             },
                             course.name,
                             if assignment.submission.submitted_at.is_some() {
-                                "(completed)".white()
+                                " (completed)".white()
                             } else {
                                 "".white()
                             }
