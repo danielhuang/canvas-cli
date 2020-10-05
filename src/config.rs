@@ -14,6 +14,7 @@ pub struct Config {
 #[serde(untagged)]
 pub enum Exclusion {
     ByClassId { class_id: i64 },
+    ByAssignmentId { assignment_id: i64 },
 }
 
 pub fn read_config() -> Config {

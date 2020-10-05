@@ -106,12 +106,20 @@ async fn main() -> Result<()> {
     let mut all_assignments: Vec<_> = all_assignments
         .into_iter()
         .flat_map(|(c, a)| a.into_iter().map(move |x| (c.clone(), x)))
+        .filter(|(_, a)| {
+            !CONFIG.exclude.iter().any(|y| match y {
+                Exclusion::ByAssignmentId { assignment_id } => assignment_id == &a.id,
+                _ => false,
+            })
+        })
         .collect();
 
     all_assignments.sort_by_key(|x| x.1.due_at);
     all_assignments.reverse();
 
     let now = Local::now();
+
+    let mut next_assignment = None;
 
     for (course, assignment) in all_assignments {
         if let Some(due) = assignment.due_at {
@@ -139,9 +147,19 @@ async fn main() -> Result<()> {
                     println!("  {} points", points);
                     println!("  {}", assignment.html_url);
                     println!();
+                    if due > now {
+                        next_assignment = Some(assignment);
+                    }
                 }
             }
         }
+    }
+
+    if let Some(next_assignment) = next_assignment {
+        println!(
+            "Next assignment is due in {} hours",
+            (next_assignment.due_at.unwrap() - now).num_hours()
+        )
     }
 
     Ok(())
