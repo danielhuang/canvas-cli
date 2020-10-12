@@ -3,9 +3,10 @@ mod config;
 
 use crate::api::{CanvasAssignment, CanvasCourse};
 use crate::config::Exclusion;
-use anyhow::{Context, Result};
 use backoff::{future::FutureOperation as _, Error, ExponentialBackoff};
 use chrono::{DateTime, Local};
+use color_eyre::eyre::WrapErr;
+use color_eyre::{eyre::eyre, Result, Section};
 use colored::Colorize;
 use futures::future::try_join_all;
 use lazy_static::lazy_static;
@@ -19,30 +20,31 @@ lazy_static! {
     static ref CLIENT: reqwest::Client = reqwest::Client::builder().build().unwrap();
 }
 
-lazy_static! {
-    static ref CONFIG: config::Config = config::read_config();
-}
-
-async fn fetch<T: DeserializeOwned>(url: &str) -> Result<T> {
+async fn fetch<T: DeserializeOwned>(config: &config::Config, url: &str) -> Result<T> {
     Ok((|| async {
         Ok(CLIENT
             .get(
-                Url::from_str(&CONFIG.canvas_url)
+                Url::from_str(&config.canvas_url)
                     .unwrap()
                     .join(url)
                     .unwrap(),
             )
-            .header("Authorization", format!("Bearer {}", CONFIG.token))
+            .header("Authorization", format!("Bearer {}", config.token))
             .send()
             .await
-            .with_context(|| format!("fetch {}", url))?
+            .wrap_err_with(|| eyre!("Unable to fetch {}", url))?
+            .error_for_status()
+            .wrap_err("Server returned error")
+            .suggestion("Make sure your credentials are valid")
+            .map_err(Error::Permanent)?
             .json()
             .await
-            .with_context(|| format!("parse {}", url))
+            .wrap_err_with(|| eyre!("Unable to parse {}", url))
             .map_err(Error::Permanent)?)
     })
     .retry(ExponentialBackoff {
         initial_interval: Duration::from_millis(10),
+        max_elapsed_time: Some(Duration::from_secs(3)),
         ..Default::default()
     })
     .await?)
@@ -73,30 +75,34 @@ fn format_datetime(datetime: DateTime<Local>) -> String {
 struct Opt {
     #[structopt(long)]
     show_completed: bool,
-    #[structopt(long)]
-    show_past: bool,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    color_eyre::install()?;
     let opt: Opt = StructOpt::from_args();
+    let config = &config::read_config().wrap_err("Unable to read configuration file")?;
 
-    let all_courses: Vec<CanvasCourse> = fetch("/api/v1/courses?enrollment_state=active").await?;
+    let all_courses: Vec<CanvasCourse> =
+        fetch(&config, "/api/v1/courses?enrollment_state=active").await?;
 
     let all_assignments = try_join_all(
         all_courses
             .into_iter()
             .filter(|x| {
-                !CONFIG.exclude.iter().any(|y| match y {
+                !config.exclude.iter().any(|y| match y {
                     Exclusion::ByClassId { class_id } => class_id == &x.id,
                     _ => false,
                 })
             })
             .map(|x| async move {
-                fetch::<Vec<CanvasAssignment>>(&format!(
-                    "/api/v1/courses/{}/assignments?per_page=1000&include=submission",
-                    x.id
-                ))
+                fetch::<Vec<CanvasAssignment>>(
+                    config,
+                    &format!(
+                        "/api/v1/courses/{}/assignments?per_page=1000&include=submission",
+                        x.id
+                    ),
+                )
                 .await
                 .map(|c| (x, c))
             }),
@@ -107,7 +113,7 @@ async fn main() -> Result<()> {
         .into_iter()
         .flat_map(|(c, a)| a.into_iter().map(move |x| (c.clone(), x)))
         .filter(|(_, a)| {
-            !CONFIG.exclude.iter().any(|y| match y {
+            !config.exclude.iter().any(|y| match y {
                 Exclusion::ByAssignmentId { assignment_id } => assignment_id == &a.id,
                 _ => false,
             })

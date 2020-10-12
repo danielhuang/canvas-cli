@@ -9,7 +9,6 @@ edition = "2018"
 [dependencies]
 tokio = { version = "0.2.22", features = ["full"] }
 reqwest = { version = "0.10.8", features = ["json"] }
-anyhow = "1.0.32"
 serde = { version = "1.0.116", features = ["derive"] }
 serde_json = "1.0.57"
 lazy_static = "1.4.0"
@@ -21,3 +20,4 @@ colored = "2.0.0"
 structopt = "0.3.17"
 dirs = "3.0.1"
 toml = "0.5.6"
+color-eyre = "0.5.6"
