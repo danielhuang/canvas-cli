@@ -77,6 +77,11 @@ struct Opt {
     show_completed: bool,
 }
 
+fn should_show(assignment: &CanvasAssignment) -> bool {
+    assignment.submission.submitted_at.is_none()
+        || (assignment.peer_reviews && assignment.submission.discussion_entries.len() < 2)
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     color_eyre::install()?;
@@ -129,7 +134,7 @@ async fn main() -> Result<()> {
 
     for (course, assignment) in all_assignments {
         if let Some(due) = assignment.due_at {
-            if opt.show_completed || assignment.submission.submitted_at.is_none() {
+            if opt.show_completed || should_show(&assignment) {
                 if let Some(points) = assignment.points_possible {
                     println!(
                         "{}",
