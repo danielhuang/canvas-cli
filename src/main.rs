@@ -84,6 +84,24 @@ fn should_show(assignment: &CanvasAssignment) -> bool {
         || (assignment.peer_reviews && assignment.submission.discussion_entries.len() < 2)
 }
 
+fn format_submission(assignment: &CanvasAssignment, points: f64) -> String {
+    let types = assignment
+        .submission_types
+        .iter()
+        .map(|x| match x.as_str() {
+            "online_text_entry" => "Text entry",
+            "online_upload" => "File upload",
+            "online_quiz" => "Quiz",
+            "discussion_topic" => "Discussion",
+            "media_recording" => "Media recording",
+            "external_tool" => "External tool",
+            _ => "Unknown",
+        });
+    let types: Vec<_> = types.collect();
+    let types = types.join(", ");
+    format!("{} - {} points", types, points)
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     color_eyre::install()?;
@@ -157,7 +175,7 @@ async fn main() -> Result<()> {
                         .underline()
                     );
                     println!("  {}", assignment.name.trim());
-                    println!("  {} points", points);
+                    println!("  {}", format_submission(&assignment, points));
                     println!("  {}", assignment.html_url);
                     println!();
                     if due > now {
