@@ -66,6 +66,8 @@ fn format_datetime(datetime: DateTime<Local>) -> String {
         format!("tomorrow at {}", time)
     } else if (datetime.date() - today).num_days() < 7 {
         format!("this {} at {}", datetime.date().format("%A"), time)
+    } else if (datetime.date() - today).num_days() < 14 {
+        format!("next {} at {}", datetime.date().format("%A"), time)
     } else {
         format!("on {} at {}", datetime.date().format("%b %d"), time)
     }
@@ -85,7 +87,7 @@ fn should_show(assignment: &CanvasAssignment) -> bool {
 #[tokio::main]
 async fn main() -> Result<()> {
     color_eyre::install()?;
-    let opt: Opt = StructOpt::from_args();
+    let opt = Opt::from_args();
     let config = &config::read_config().wrap_err("Unable to read configuration file")?;
 
     let all_courses: Vec<CanvasCourse> =
