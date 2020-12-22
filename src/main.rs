@@ -178,7 +178,7 @@ async fn main() -> Result<()> {
                     println!("  {}", format_submission(&assignment, points));
                     println!("  {}", assignment.html_url);
                     println!();
-                    if due > now {
+                    if due > now && assignment.submission.submitted_at.is_none() {
                         next_assignment = Some(assignment);
                     }
                 }
