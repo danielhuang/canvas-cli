@@ -76,24 +76,27 @@ fn format_datetime(datetime: DateTime<Local>) -> String {
 #[derive(StructOpt, Clone, Copy, Debug)]
 struct Opt {
     #[structopt(long)]
-    show_completed: bool,
+    show_all: bool,
 }
 
-fn should_show(assignment: &CanvasAssignment, due_offset: Option<i64>) -> bool {
-    if let Some(due) = &assignment.due_at {
-        let today = Local::now().date();
-        if let Some(offset) = due_offset {
-            if (due.date() - today).num_days() < -offset {
+fn should_show(config: &config::Config, assignment: &CanvasAssignment) -> bool {
+    if let Some(due) = assignment.due_at {
+        if let Some(overdue_offset) = config.hide_overdue_after_days {
+            if (Local::now() - due).num_days() > overdue_offset {
                 return false;
             }
         }
     }
+
     if let Some(submission) = &assignment.submission {
-        submission.submitted_at.is_none()
-            || (assignment.peer_reviews && submission.discussion_entries.len() < 2)
-    } else {
-        false
+        if !(submission.submitted_at.is_none()
+            || assignment.peer_reviews && submission.discussion_entries.len() < 2)
+        {
+            return false;
+        }
     }
+
+    true
 }
 
 fn format_submission(assignment: &CanvasAssignment, points: f64) -> String {
@@ -184,7 +187,7 @@ async fn main() -> Result<()> {
 
     for (course, assignment) in all_assignments {
         if let Some(due) = assignment.due_at {
-            if opt.show_completed || should_show(&assignment, config.overdue_offset) {
+            if opt.show_all || should_show(&config, &assignment) {
                 if let Some(points) = assignment.points_possible {
                     if let Some(submission) = &assignment.submission {
                         println!(
