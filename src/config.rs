@@ -8,6 +8,8 @@ pub struct Config {
     pub canvas_url: String,
     pub token: String,
     #[serde(default)]
+    pub hide_overdue_after_days: Option<i64>,
+    #[serde(default)]
     pub exclude: Vec<Exclusion>,
 }
 
