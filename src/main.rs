@@ -142,7 +142,7 @@ async fn main() -> Result<()> {
                 fetch::<Vec<CanvasAssignment>>(
                     config,
                     &format!(
-                        "/api/v1/courses/{}/assignments?per_page=1000&include=submission",
+                        "/api/v1/courses/{}/assignments?per_page=10000&include=submission",
                         x.id
                     ),
                 )
