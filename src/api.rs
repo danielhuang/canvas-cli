@@ -196,7 +196,7 @@ pub struct DiscussionTopic {
     pub user_name: Value,
     pub discussion_subentry_count: i64,
     pub permissions: Permissions,
-    pub require_initial_post: bool,
+    pub require_initial_post: Option<bool>,
     pub user_can_see_posts: bool,
     pub podcast_url: Value,
     pub read_state: String,
