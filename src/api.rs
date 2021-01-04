@@ -52,7 +52,7 @@ pub struct CanvasAssignment {
     pub html_url: String,
     pub published: bool,
     pub only_visible_to_overrides: bool,
-    pub submission: Submission,
+    pub submission: Option<Submission>,
     pub locked_for_user: bool,
     pub submissions_download_url: String,
     pub post_manually: bool,

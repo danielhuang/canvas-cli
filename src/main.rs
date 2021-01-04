@@ -80,8 +80,12 @@ struct Opt {
 }
 
 fn should_show(assignment: &CanvasAssignment) -> bool {
-    assignment.submission.submitted_at.is_none()
-        || (assignment.peer_reviews && assignment.submission.discussion_entries.len() < 2)
+    if let Some(submission) = &assignment.submission {
+        submission.submitted_at.is_none()
+            || (assignment.peer_reviews && submission.discussion_entries.len() < 2)
+    } else {
+        false
+    }
 }
 
 fn format_submission(assignment: &CanvasAssignment, points: f64) -> String {
@@ -174,33 +178,35 @@ async fn main() -> Result<()> {
         if let Some(due) = assignment.due_at {
             if opt.show_completed || should_show(&assignment) {
                 if let Some(points) = assignment.points_possible {
-                    println!(
-                        "{}",
-                        format!(
-                            "Due {} - {}{}",
-                            if due < now {
-                                format_datetime(due).red().bold()
-                            } else {
-                                format_datetime(due).bold()
-                            },
-                            colorize(order_map[&course.id], &course.name),
-                            if assignment.submission.submitted_at.is_some() {
-                                " (completed)".white()
-                            } else {
-                                "".white()
-                            }
-                        )
-                        .underline()
-                    );
-                    println!(
-                        "  {} {}",
-                        assignment.name.trim(),
-                        format!("({})", format_submission(&assignment, points)).bright_black()
-                    );
-                    println!("  {}", assignment.html_url);
-                    println!();
-                    if due > now && assignment.submission.submitted_at.is_none() {
-                        next_assignment = Some(assignment);
+                    if let Some(submission) = &assignment.submission {
+                        println!(
+                            "{}",
+                            format!(
+                                "Due {} - {}{}",
+                                if due < now {
+                                    format_datetime(due).red().bold()
+                                } else {
+                                    format_datetime(due).bold()
+                                },
+                                colorize(order_map[&course.id], &course.name),
+                                if submission.submitted_at.is_some() {
+                                    " (completed)".white()
+                                } else {
+                                    "".white()
+                                }
+                            )
+                            .underline()
+                        );
+                        println!(
+                            "  {} {}",
+                            assignment.name.trim(),
+                            format!("({})", format_submission(&assignment, points)).bright_black()
+                        );
+                        println!("  {}", assignment.html_url);
+                        println!();
+                        if due > now && submission.submitted_at.is_none() {
+                            next_assignment = Some(assignment);
+                        }
                     }
                 }
             }
