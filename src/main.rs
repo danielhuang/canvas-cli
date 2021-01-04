@@ -179,33 +179,39 @@ async fn main() -> Result<()> {
             if opt.show_completed || should_show(&assignment) {
                 if let Some(points) = assignment.points_possible {
                     if let Some(submission) = &assignment.submission {
-                        println!(
-                            "{}",
-                            format!(
-                                "Due {} - {}{}",
-                                if due < now {
-                                    format_datetime(due).red().bold()
-                                } else {
-                                    format_datetime(due).bold()
-                                },
-                                colorize(order_map[&course.id], &course.name),
-                                if submission.submitted_at.is_some() {
-                                    " (completed)".white()
-                                } else {
-                                    "".white()
-                                }
-                            )
-                            .underline()
-                        );
-                        println!(
-                            "  {} {}",
-                            assignment.name.trim(),
-                            format!("({})", format_submission(&assignment, points)).bright_black()
-                        );
-                        println!("  {}", assignment.html_url);
-                        println!();
-                        if due > now && submission.submitted_at.is_none() {
-                            next_assignment = Some(assignment);
+                        let today = Local::now().date();
+                        let offset = (due.date() - today).num_days();
+
+                        if offset > -5 {
+                            println!(
+                                "{}",
+                                format!(
+                                    "Due {} - {}{}",
+                                    if due < now {
+                                        format_datetime(due).red().bold()
+                                    } else {
+                                        format_datetime(due).bold()
+                                    },
+                                    colorize(order_map[&course.id], &course.name),
+                                    if submission.submitted_at.is_some() {
+                                        " (completed)".white()
+                                    } else {
+                                        "".white()
+                                    }
+                                )
+                                .underline()
+                            );
+                            println!(
+                                "  {} {}",
+                                assignment.name.trim(),
+                                format!("({})", format_submission(&assignment, points))
+                                    .bright_black()
+                            );
+                            println!("  {}", assignment.html_url);
+                            println!();
+                            if due > now && submission.submitted_at.is_none() {
+                                next_assignment = Some(assignment);
+                            }
                         }
                     }
                 }
