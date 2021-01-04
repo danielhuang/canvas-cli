@@ -79,7 +79,15 @@ struct Opt {
     show_completed: bool,
 }
 
-fn should_show(assignment: &CanvasAssignment) -> bool {
+fn should_show(assignment: &CanvasAssignment, due_offset: Option<i64>) -> bool {
+    if let Some(due) = &assignment.due_at {
+        let today = Local::now().date();
+        if let Some(offset) = due_offset {
+            if (due.date() - today).num_days() < -offset {
+                return false;
+            }
+        }
+    }
     if let Some(submission) = &assignment.submission {
         submission.submitted_at.is_none()
             || (assignment.peer_reviews && submission.discussion_entries.len() < 2)
@@ -176,42 +184,36 @@ async fn main() -> Result<()> {
 
     for (course, assignment) in all_assignments {
         if let Some(due) = assignment.due_at {
-            if opt.show_completed || should_show(&assignment) {
+            if opt.show_completed || should_show(&assignment, config.overdue_offset) {
                 if let Some(points) = assignment.points_possible {
                     if let Some(submission) = &assignment.submission {
-                        let today = Local::now().date();
-                        let offset = (due.date() - today).num_days();
-
-                        if offset > -5 {
-                            println!(
-                                "{}",
-                                format!(
-                                    "Due {} - {}{}",
-                                    if due < now {
-                                        format_datetime(due).red().bold()
-                                    } else {
-                                        format_datetime(due).bold()
-                                    },
-                                    colorize(order_map[&course.id], &course.name),
-                                    if submission.submitted_at.is_some() {
-                                        " (completed)".white()
-                                    } else {
-                                        "".white()
-                                    }
-                                )
-                                .underline()
-                            );
-                            println!(
-                                "  {} {}",
-                                assignment.name.trim(),
-                                format!("({})", format_submission(&assignment, points))
-                                    .bright_black()
-                            );
-                            println!("  {}", assignment.html_url);
-                            println!();
-                            if due > now && submission.submitted_at.is_none() {
-                                next_assignment = Some(assignment);
-                            }
+                        println!(
+                            "{}",
+                            format!(
+                                "Due {} - {}{}",
+                                if due < now {
+                                    format_datetime(due).red().bold()
+                                } else {
+                                    format_datetime(due).bold()
+                                },
+                                colorize(order_map[&course.id], &course.name),
+                                if submission.submitted_at.is_some() {
+                                    " (completed)".white()
+                                } else {
+                                    "".white()
+                                }
+                            )
+                            .underline()
+                        );
+                        println!(
+                            "  {} {}",
+                            assignment.name.trim(),
+                            format!("({})", format_submission(&assignment, points)).bright_black()
+                        );
+                        println!("  {}", assignment.html_url);
+                        println!();
+                        if due > now && submission.submitted_at.is_none() {
+                            next_assignment = Some(assignment);
                         }
                     }
                 }
