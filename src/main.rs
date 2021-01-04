@@ -12,8 +12,8 @@ use futures::future::try_join_all;
 use lazy_static::lazy_static;
 use reqwest::Url;
 use serde::de::DeserializeOwned;
-use std::str::FromStr;
-use std::time::Duration;
+use std::{collections::HashMap, str::FromStr};
+use std::{fmt::Display, time::Duration};
 use structopt::StructOpt;
 
 lazy_static! {
@@ -102,14 +102,32 @@ fn format_submission(assignment: &CanvasAssignment, points: f64) -> String {
     format!("{} - {} points", types, points)
 }
 
+fn colorize(i: usize, s: &str) -> impl Display {
+    [s.blue(), s.yellow(), s.purple(), s.cyan()]
+        .iter()
+        .cycle()
+        .nth(i)
+        .unwrap()
+        .to_owned()
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     color_eyre::install()?;
     let opt = Opt::from_args();
     let config = &config::read_config().wrap_err("Unable to read configuration file")?;
 
-    let all_courses: Vec<CanvasCourse> =
+    let mut all_courses: Vec<CanvasCourse> =
         fetch(&config, "/api/v1/courses?enrollment_state=active").await?;
+
+    all_courses.sort_by_key(|x| x.name.clone());
+
+    let order_map: HashMap<_, _> = all_courses
+        .iter()
+        .map(|x| x.id)
+        .enumerate()
+        .map(|(i, x)| (x, i))
+        .collect();
 
     let all_assignments = try_join_all(
         all_courses
@@ -163,9 +181,9 @@ async fn main() -> Result<()> {
                             if due < now {
                                 format_datetime(due).red().bold()
                             } else {
-                                format_datetime(due).green().bold()
+                                format_datetime(due).bold()
                             },
-                            course.name,
+                            colorize(order_map[&course.id], &course.name),
                             if assignment.submission.submitted_at.is_some() {
                                 " (completed)".white()
                             } else {
@@ -174,8 +192,11 @@ async fn main() -> Result<()> {
                         )
                         .underline()
                     );
-                    println!("  {}", assignment.name.trim());
-                    println!("  {}", format_submission(&assignment, points));
+                    println!(
+                        "  {} {}",
+                        assignment.name.trim(),
+                        format!("({})", format_submission(&assignment, points)).bright_black()
+                    );
                     println!("  {}", assignment.html_url);
                     println!();
                     if due > now && assignment.submission.submitted_at.is_none() {
