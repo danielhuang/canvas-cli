@@ -1,0 +1,12 @@
+build_task:
+  container:
+    dockerfile: Dockerfile
+  build_script: cargo build --release
+clippy_task:
+  container:
+    dockerfile: Dockerfile
+  build_script: cargo clippy
+fmt_task:
+  container:
+    dockerfile: Dockerfile
+  build_script: cargo fmt -- --check
