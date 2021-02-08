@@ -73,6 +73,15 @@ fn format_datetime(datetime: DateTime<Local>) -> String {
     }
 }
 
+fn format_duration(a: DateTime<Local>, b: DateTime<Local>) -> String {
+    assert!(b > a);
+    if b - a < chrono::Duration::hours(48) {
+        format!("{} hours", (b - a).num_hours())
+    } else {
+        format!("{} days", (b - a).num_days())
+    }
+}
+
 #[derive(StructOpt, Clone, Copy, Debug)]
 struct Opt {
     #[structopt(long)]
@@ -193,12 +202,13 @@ async fn main() -> Result<()> {
                         println!(
                             "{}",
                             format!(
-                                "Due {} - {}{}",
+                                "Due {} (in {}) - {}{}",
                                 if due < now {
                                     format_datetime(due).red().bold()
                                 } else {
                                     format_datetime(due).bold()
                                 },
+                                format_duration(now, due),
                                 colorize(order_map[&course.id], &course.name),
                                 if submission.submitted_at.is_some() {
                                     " (completed)".white()
@@ -226,8 +236,8 @@ async fn main() -> Result<()> {
 
     if let Some(next_assignment) = next_assignment {
         println!(
-            "Next assignment is due in {} hours",
-            (next_assignment.due_at.unwrap() - now).num_hours()
+            "Next assignment is due in {}",
+            format_duration(now, next_assignment.due_at.unwrap())
         )
     }
 
