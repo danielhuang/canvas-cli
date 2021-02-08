@@ -75,10 +75,12 @@ fn format_datetime(datetime: DateTime<Local>) -> String {
 
 fn format_duration(a: DateTime<Local>, b: DateTime<Local>) -> String {
     assert!(b > a);
-    if b - a < chrono::Duration::hours(48) {
+    if (b - a).num_hours() == 1 {
+        "1 hour".into()
+    } else if b - a < chrono::Duration::hours(48) {
         format!("{} hours", (b - a).num_hours())
     } else {
-        format!("{} days", (b - a).num_days())
+        format!("{} days", (b.date() - a.date()).num_days())
     }
 }
 
