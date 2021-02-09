@@ -121,6 +121,7 @@ fn format_submission(assignment: &CanvasAssignment, points: f64) -> String {
             "discussion_topic" => "Discussion",
             "media_recording" => "Media recording",
             "external_tool" => "External tool",
+            "none" => "No submission",
             _ => "Unknown",
         });
     let types: Vec<_> = types.collect();
@@ -201,6 +202,7 @@ async fn main() -> Result<()> {
             if opt.show_all || should_show(&config, &assignment) {
                 if let Some(points) = assignment.points_possible {
                     if let Some(submission) = &assignment.submission {
+                        dbg!(&assignment.submission_types);
                         println!(
                             "{}",
                             format!(
