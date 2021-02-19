@@ -202,7 +202,6 @@ async fn main() -> Result<()> {
             if opt.show_all || should_show(&config, &assignment) {
                 if let Some(points) = assignment.points_possible {
                     if let Some(submission) = &assignment.submission {
-                        dbg!(&assignment.submission_types);
                         println!(
                             "{}",
                             format!(
