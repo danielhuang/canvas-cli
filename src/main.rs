@@ -145,7 +145,7 @@ async fn main() -> Result<()> {
     let config = &config::read_config().wrap_err("Unable to read configuration file")?;
 
     let mut all_courses: Vec<CanvasCourse> =
-        fetch(&config, "/api/v1/courses?enrollment_state=active").await?;
+        fetch(&config, "/api/v1/courses?enrollment_state=active&per_page=10000").await?;
 
     all_courses.sort_by_key(|x| x.name.clone());
 
