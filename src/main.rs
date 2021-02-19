@@ -8,6 +8,7 @@ use chrono::{DateTime, Local};
 use color_eyre::eyre::WrapErr;
 use color_eyre::{eyre::eyre, Result, Section};
 use colored::Colorize;
+use config::config_path;
 use futures::future::try_join_all;
 use lazy_static::lazy_static;
 use reqwest::Url;
@@ -15,6 +16,11 @@ use serde::de::DeserializeOwned;
 use std::{collections::HashMap, str::FromStr};
 use std::{fmt::Display, time::Duration};
 use structopt::StructOpt;
+use tokio::{
+    fs::{read_to_string, File},
+    io::AsyncWriteExt,
+};
+use toml_edit::{value, ArrayOfTables, Document, Table};
 
 lazy_static! {
     static ref CLIENT: reqwest::Client = reqwest::Client::builder().build().unwrap();
@@ -84,10 +90,15 @@ fn format_duration(a: DateTime<Local>, b: DateTime<Local>) -> String {
     }
 }
 
-#[derive(StructOpt, Clone, Copy, Debug)]
-struct Opt {
-    #[structopt(long)]
-    show_all: bool,
+#[derive(StructOpt, Clone, Debug)]
+enum Opt {
+    #[structopt(about = "Displays a list of upcoming assignments")]
+    Todo {
+        #[structopt(long)]
+        show_all: bool,
+    },
+    #[structopt(about = "Adds an assignment to the exclusion list")]
+    Exclude { assignment_id: i64 },
 }
 
 fn should_show(config: &config::Config, assignment: &CanvasAssignment) -> bool {
@@ -144,18 +155,54 @@ async fn main() -> Result<()> {
     let opt = Opt::from_args();
     let config = &config::read_config().wrap_err("Unable to read configuration file")?;
 
-    let mut all_courses: Vec<CanvasCourse> =
-        fetch(&config, "/api/v1/courses?enrollment_state=active&per_page=10000").await?;
+    match opt {
+        Opt::Todo { show_all } => {
+            run_todo(config, show_all).await?;
+        }
+        Opt::Exclude { assignment_id } => {
+            run_exclude(assignment_id).await?;
+        }
+    }
 
+    Ok(())
+}
+
+async fn run_exclude(assignment_id: i64) -> Result<()> {
+    let old_config = read_to_string(config_path()).await?;
+    let mut doc: Document = old_config.parse()?;
+
+    doc["exclude"]
+        .as_array_of_tables_mut()
+        .unwrap_or(&mut ArrayOfTables::default())
+        .append({
+            let mut t = Table::new();
+            t["assignment_id"] = value(assignment_id);
+            t
+        });
+
+    File::create(config_path())
+        .await?
+        .write(&doc.to_string().as_bytes())
+        .await?;
+
+    println!("Assignment {} excluded successfully.", assignment_id);
+
+    Ok(())
+}
+
+async fn run_todo(config: &config::Config, show_all: bool) -> Result<()> {
+    let mut all_courses: Vec<CanvasCourse> = fetch(
+        &config,
+        "/api/v1/courses?enrollment_state=active&per_page=10000",
+    )
+    .await?;
     all_courses.sort_by_key(|x| x.name.clone());
-
     let order_map: HashMap<_, _> = all_courses
         .iter()
         .map(|x| x.id)
         .enumerate()
         .map(|(i, x)| (x, i))
         .collect();
-
     let all_assignments = try_join_all(
         all_courses
             .into_iter()
@@ -178,7 +225,6 @@ async fn main() -> Result<()> {
             }),
     )
     .await?;
-
     let mut all_assignments: Vec<_> = all_assignments
         .into_iter()
         .flat_map(|(c, a)| a.into_iter().map(move |x| (c.clone(), x)))
@@ -189,17 +235,13 @@ async fn main() -> Result<()> {
             })
         })
         .collect();
-
     all_assignments.sort_by_key(|x| x.1.due_at);
     all_assignments.reverse();
-
     let now = Local::now();
-
     let mut next_assignment = None;
-
     for (course, assignment) in all_assignments {
         if let Some(due) = assignment.due_at {
-            if opt.show_all || should_show(&config, &assignment) {
+            if show_all || should_show(&config, &assignment) {
                 if let Some(points) = assignment.points_possible {
                     if let Some(submission) = &assignment.submission {
                         println!(
@@ -242,7 +284,7 @@ async fn main() -> Result<()> {
             "Next assignment is due in {}",
             format_duration(now, next_assignment.due_at.unwrap())
         )
-    }
+    };
 
     Ok(())
 }

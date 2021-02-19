@@ -21,6 +21,10 @@ pub enum Exclusion {
 }
 
 pub fn read_config() -> Result<Config> {
-    let config = read_to_string(home_dir().unwrap().join(".canvas.toml"))?;
+    let config = read_to_string(config_path())?;
     Ok(toml::from_str(&config)?)
+}
+
+pub fn config_path() -> std::path::PathBuf {
+    home_dir().unwrap().join(".canvas.toml")
 }
