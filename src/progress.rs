@@ -47,4 +47,8 @@ impl Progress {
         self.update();
         o
     }
+
+    pub fn finish(self) {
+        self.bar.finish_and_clear();
+    }
 }

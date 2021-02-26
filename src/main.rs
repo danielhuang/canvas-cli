@@ -193,7 +193,7 @@ async fn run_exclude(assignment_id: i64) -> Result<()> {
 }
 
 async fn run_todo(config: &config::Config, show_all: bool) -> Result<()> {
-    let progress = &Progress::new();
+    let progress = Progress::new();
     let mut all_courses: Vec<CanvasCourse> = progress
         .wrap(
             "Loading course list",
@@ -219,23 +219,29 @@ async fn run_todo(config: &config::Config, show_all: bool) -> Result<()> {
                     _ => false,
                 })
             })
-            .map(|x| async move {
-                progress
-                    .wrap(
-                        &format!("Loading assignments for {}", x.name),
-                        fetch::<Vec<CanvasAssignment>>(
-                            config,
-                            &format!(
+            .map(|x| {
+                let progress = &progress;
+                async move {
+                    progress
+                        .wrap(
+                            &format!("Loading assignments for {}", x.name),
+                            fetch::<Vec<CanvasAssignment>>(
+                                config,
+                                &format!(
                                 "/api/v1/courses/{}/assignments?per_page=10000&include=submission",
                                 x.id
                             ),
-                        ),
-                    )
-                    .await
-                    .map(|c| (x, c))
+                            ),
+                        )
+                        .await
+                        .map(|c| (x, c))
+                }
             }),
     )
     .await?;
+
+    progress.finish();
+
     let mut all_assignments: Vec<_> = all_assignments
         .into_iter()
         .flat_map(|(c, a)| a.into_iter().map(move |x| (c.clone(), x)))
