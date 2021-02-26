@@ -1,5 +1,6 @@
 mod api;
 mod config;
+mod progress;
 
 use crate::api::{CanvasAssignment, CanvasCourse};
 use crate::config::Exclusion;
@@ -11,6 +12,7 @@ use colored::Colorize;
 use config::config_path;
 use futures::future::try_join_all;
 use lazy_static::lazy_static;
+use progress::Progress;
 use reqwest::Url;
 use serde::de::DeserializeOwned;
 use std::{collections::HashMap, str::FromStr};
@@ -191,11 +193,16 @@ async fn run_exclude(assignment_id: i64) -> Result<()> {
 }
 
 async fn run_todo(config: &config::Config, show_all: bool) -> Result<()> {
-    let mut all_courses: Vec<CanvasCourse> = fetch(
-        &config,
-        "/api/v1/courses?enrollment_state=active&per_page=10000",
-    )
-    .await?;
+    let progress = &Progress::new();
+    let mut all_courses: Vec<CanvasCourse> = progress
+        .wrap(
+            "Loading course list",
+            fetch(
+                &config,
+                "/api/v1/courses?enrollment_state=active&per_page=10000",
+            ),
+        )
+        .await?;
     all_courses.sort_by_key(|x| x.name.clone());
     let order_map: HashMap<_, _> = all_courses
         .iter()
@@ -213,15 +220,19 @@ async fn run_todo(config: &config::Config, show_all: bool) -> Result<()> {
                 })
             })
             .map(|x| async move {
-                fetch::<Vec<CanvasAssignment>>(
-                    config,
-                    &format!(
-                        "/api/v1/courses/{}/assignments?per_page=10000&include=submission",
-                        x.id
-                    ),
-                )
-                .await
-                .map(|c| (x, c))
+                progress
+                    .wrap(
+                        &format!("Loading assignments for {}", x.name),
+                        fetch::<Vec<CanvasAssignment>>(
+                            config,
+                            &format!(
+                                "/api/v1/courses/{}/assignments?per_page=10000&include=submission",
+                                x.id
+                            ),
+                        ),
+                    )
+                    .await
+                    .map(|c| (x, c))
             }),
     )
     .await?;
