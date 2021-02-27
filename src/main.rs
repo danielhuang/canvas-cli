@@ -203,6 +203,15 @@ async fn run_todo(config: &config::Config, show_all: bool) -> Result<()> {
             ),
         )
         .await?;
+    all_courses = all_courses
+        .into_iter()
+        .filter(|x| {
+            !config.exclude.iter().any(|y| match y {
+                Exclusion::ByClassId { class_id } => class_id == &x.id,
+                _ => false,
+            })
+        })
+        .collect();
     all_courses.sort_by_key(|x| x.name.clone());
     let order_map: HashMap<_, _> = all_courses
         .iter()
@@ -210,34 +219,24 @@ async fn run_todo(config: &config::Config, show_all: bool) -> Result<()> {
         .enumerate()
         .map(|(i, x)| (x, i))
         .collect();
-    let all_assignments = try_join_all(
-        all_courses
-            .into_iter()
-            .filter(|x| {
-                !config.exclude.iter().any(|y| match y {
-                    Exclusion::ByClassId { class_id } => class_id == &x.id,
-                    _ => false,
-                })
-            })
-            .map(|x| {
-                let progress = &progress;
-                async move {
-                    progress
-                        .wrap(
-                            &format!("Loading assignments for {}", x.name),
-                            fetch::<Vec<CanvasAssignment>>(
-                                config,
-                                &format!(
-                                "/api/v1/courses/{}/assignments?per_page=10000&include=submission",
-                                x.id
-                            ),
-                            ),
-                        )
-                        .await
-                        .map(|c| (x, c))
-                }
-            }),
-    )
+    let all_assignments = try_join_all(all_courses.into_iter().map(|x| {
+        let progress = &progress;
+        async move {
+            progress
+                .wrap(
+                    &format!("Loading assignments for {}", x.name),
+                    fetch::<Vec<CanvasAssignment>>(
+                        config,
+                        &format!(
+                            "/api/v1/courses/{}/assignments?per_page=10000&include=submission",
+                            x.id
+                        ),
+                    ),
+                )
+                .await
+                .map(|c| (x, c))
+        }
+    }))
     .await?;
 
     progress.finish();
