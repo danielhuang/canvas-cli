@@ -28,27 +28,37 @@ lazy_static! {
     static ref CLIENT: reqwest::Client = reqwest::Client::builder().build().unwrap();
 }
 
+fn decode_json<T: DeserializeOwned>(x: &[u8]) -> Result<T> {
+    let jd = &mut serde_json::Deserializer::from_slice(x);
+
+    Ok(serde_path_to_error::deserialize(jd)?)
+}
+
 async fn fetch<T: DeserializeOwned>(config: &config::Config, url: &str) -> Result<T> {
     Ok((|| async {
-        Ok(CLIENT
-            .get(
-                Url::from_str(&config.canvas_url)
-                    .unwrap()
-                    .join(url)
-                    .unwrap(),
-            )
-            .header("Authorization", format!("Bearer {}", config.token))
-            .send()
-            .await
-            .wrap_err_with(|| eyre!("Unable to fetch {}", url))?
-            .error_for_status()
-            .wrap_err("Server returned error")
-            .suggestion("Make sure your credentials are valid")
-            .map_err(Error::Permanent)?
-            .json()
-            .await
-            .wrap_err_with(|| eyre!("Unable to parse {}", url))
-            .map_err(Error::Permanent)?)
+        Ok(decode_json(
+            &CLIENT
+                .get(
+                    Url::from_str(&config.canvas_url)
+                        .unwrap()
+                        .join(url)
+                        .unwrap(),
+                )
+                .header("Authorization", format!("Bearer {}", config.token))
+                .send()
+                .await
+                .wrap_err_with(|| eyre!("Unable to fetch {}", url))?
+                .error_for_status()
+                .wrap_err("Server returned error")
+                .suggestion("Make sure your credentials are valid")
+                .map_err(Error::Permanent)?
+                .bytes()
+                .await
+                .wrap_err("Failed to read data from server")
+                .map_err(Error::Permanent)?,
+        )
+        .wrap_err_with(|| eyre!("Unable to parse {}", url))
+        .map_err(Error::Permanent)?)
     })
     .retry(ExponentialBackoff {
         initial_interval: Duration::from_millis(10),
