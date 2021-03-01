@@ -179,7 +179,7 @@ pub struct ExternalToolTagAttributes {
 pub struct DiscussionTopic {
     pub id: i64,
     pub title: String,
-    pub last_reply_at: String,
+    pub last_reply_at: Option<String>,
     pub created_at: String,
     pub delayed_post_at: Value,
     pub posted_at: Option<String>,
