@@ -194,7 +194,7 @@ async fn run_exclude(assignment_id: i64) -> Result<()> {
 
     File::create(config_path())
         .await?
-        .write(&doc.to_string().as_bytes())
+        .write_all(&doc.to_string().as_bytes())
         .await?;
 
     println!("Assignment {} excluded successfully.", assignment_id);
