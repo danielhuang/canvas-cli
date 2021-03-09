@@ -15,7 +15,11 @@ use lazy_static::lazy_static;
 use progress::Progress;
 use reqwest::Url;
 use serde::de::DeserializeOwned;
-use std::{collections::HashMap, str::FromStr};
+use std::{
+    cmp::{max, min},
+    collections::HashMap,
+    str::FromStr,
+};
 use std::{fmt::Display, time::Duration};
 use structopt::StructOpt;
 use tokio::{
@@ -76,13 +80,11 @@ fn format_datetime(datetime: DateTime<Local>) -> String {
     let today = Local::now().date();
     let time = format_time(datetime);
 
-    if datetime.date() < today {
-        format!("{} days ago", (today - datetime.date()).num_days())
-    } else if datetime.date() == today {
+    if datetime.date() == today {
         format!("today at {}", time)
     } else if datetime.date() == today.succ() {
         format!("tomorrow at {}", time)
-    } else if (datetime.date() - today).num_days() < 7 {
+    } else if (datetime.date() - today).num_days().abs() < 7 {
         format!("this {} at {}", datetime.date().format("%A"), time)
     } else if (datetime.date() - today).num_days() < 14 {
         format!("next {} at {}", datetime.date().format("%A"), time)
@@ -99,6 +101,15 @@ fn format_duration(a: DateTime<Local>, b: DateTime<Local>) -> String {
         format!("{} hours", (b - a).num_hours())
     } else {
         format!("{} days", (b.date() - a.date()).num_days())
+    }
+}
+
+fn format_duration_full(a: DateTime<Local>, b: DateTime<Local>) -> String {
+    let base_text = format_duration(min(a, b), max(a, b));
+    if b > a {
+        format!("in {}", base_text)
+    } else {
+        format!("{} ago", base_text)
     }
 }
 
@@ -273,13 +284,13 @@ async fn run_todo(config: &config::Config, show_all: bool) -> Result<()> {
                         println!(
                             "{}",
                             format!(
-                                "Due {} (in {}) - {}{}",
+                                "Due {} ({}) - {}{}",
                                 if due < now {
                                     format_datetime(due).red().bold()
                                 } else {
                                     format_datetime(due).bold()
                                 },
-                                format_duration(now, due),
+                                format_duration_full(now, due),
                                 colorize(order_map[&course.id], &course.name),
                                 if submission.submitted_at.is_some() {
                                     " (completed)".white()
