@@ -11,6 +11,8 @@ pub struct Config {
     pub hide_overdue_after_days: Option<i64>,
     #[serde(default)]
     pub exclude: Vec<Exclusion>,
+    #[serde(default)]
+    pub hide_locked: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

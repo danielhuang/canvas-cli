@@ -274,46 +274,68 @@ async fn run_todo(config: &config::Config, show_all: bool) -> Result<()> {
         .collect();
     all_assignments.sort_by_key(|x| x.1.due_at);
     all_assignments.reverse();
+
     let now = Local::now();
+
     let mut next_assignment = None;
+    let mut locked_count = 0;
+
     for (course, assignment) in all_assignments {
         if let Some(due) = assignment.due_at {
             if show_all || should_show(&config, &assignment) {
                 if let Some(points) = assignment.points_possible {
                     if let Some(submission) = &assignment.submission {
-                        println!(
-                            "{}",
-                            format!(
-                                "Due {} ({}) - {}{}",
-                                if due < now {
-                                    format_datetime(due).red().bold()
-                                } else {
-                                    format_datetime(due).bold()
-                                },
-                                format_duration_full(now, due),
-                                colorize(order_map[&course.id], &course.name),
-                                if submission.submitted_at.is_some() {
-                                    " (completed)".white()
-                                } else {
-                                    "".white()
-                                }
-                            )
-                            .underline()
-                        );
-                        println!(
-                            "  {} {}",
-                            assignment.name.trim(),
-                            format!("({})", format_submission(&assignment, points)).bright_black()
-                        );
-                        println!("  {}", assignment.html_url);
-                        println!();
-                        if due > now && submission.submitted_at.is_none() {
-                            next_assignment = Some(assignment);
+                        if config.hide_locked && assignment.locked_for_user {
+                            locked_count += 1;
+                        } else {
+                            println!(
+                                "{}",
+                                format!(
+                                    "Due {} ({}) - {}{}",
+                                    if due < now {
+                                        format_datetime(due).red().bold()
+                                    } else {
+                                        format_datetime(due).bold()
+                                    },
+                                    format_duration_full(now, due),
+                                    colorize(order_map[&course.id], &course.name),
+                                    if submission.submitted_at.is_some() {
+                                        " (completed)".white()
+                                    } else {
+                                        "".white()
+                                    }
+                                )
+                                .underline()
+                            );
+                            println!(
+                                "  {} {}",
+                                assignment.name.trim(),
+                                format!("({})", format_submission(&assignment, points))
+                                    .bright_black()
+                            );
+                            println!("  {}", assignment.html_url);
+                            println!();
+                            if due > now && submission.submitted_at.is_none() {
+                                next_assignment = Some(assignment);
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    if locked_count != 0 {
+        println!(
+            "{}",
+            format!(
+                "(+{} locked assignment{})",
+                locked_count,
+                if locked_count == 1 { "" } else { "s" }
+            )
+            .bright_black()
+        );
+        println!();
     }
 
     if let Some(next_assignment) = next_assignment {
