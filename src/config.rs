@@ -12,6 +12,8 @@ pub struct Config {
     #[serde(default)]
     pub exclude: Vec<Exclusion>,
     #[serde(default)]
+    pub include: Vec<Inclusion>,
+    #[serde(default)]
     pub hide_locked: bool,
 }
 
@@ -19,6 +21,12 @@ pub struct Config {
 #[serde(untagged)]
 pub enum Exclusion {
     ByClassId { class_id: i64 },
+    ByAssignmentId { assignment_id: i64 },
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum Inclusion {
     ByAssignmentId { assignment_id: i64 },
 }
 

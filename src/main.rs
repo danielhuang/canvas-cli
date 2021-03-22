@@ -9,7 +9,7 @@ use chrono::{DateTime, Local};
 use color_eyre::eyre::WrapErr;
 use color_eyre::{eyre::eyre, Result, Section};
 use colored::Colorize;
-use config::config_path;
+use config::{config_path, Inclusion};
 use futures::future::try_join_all;
 use lazy_static::lazy_static;
 use progress::Progress;
@@ -125,6 +125,12 @@ enum Opt {
 }
 
 fn should_show(config: &config::Config, assignment: &CanvasAssignment) -> bool {
+    if config.include.contains(&Inclusion::ByAssignmentId {
+        assignment_id: assignment.id,
+    }) {
+        return true;
+    }
+
     if let Some(due) = assignment.due_at {
         if let Some(overdue_offset) = config.hide_overdue_after_days {
             if (Local::now() - due).num_days() > overdue_offset {
