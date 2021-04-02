@@ -84,9 +84,9 @@ fn format_datetime(datetime: DateTime<Local>) -> String {
         format!("today at {}", time)
     } else if datetime.date() == today.succ() {
         format!("tomorrow at {}", time)
-    } else if (datetime.date() - today).num_days().abs() < 7 {
+    } else if (0..7).contains(&(datetime.date() - today).num_days()) {
         format!("this {} at {}", datetime.date().format("%A"), time)
-    } else if (datetime.date() - today).num_days() < 14 {
+    } else if (7..14).contains(&(datetime.date() - today).num_days()) {
         format!("next {} at {}", datetime.date().format("%A"), time)
     } else {
         format!("on {} at {}", datetime.date().format("%b %d"), time)
