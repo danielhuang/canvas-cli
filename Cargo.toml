@@ -12,7 +12,7 @@ reqwest = { version = "0.11.3", features = ["json"] }
 serde = { version = "1.0.125", features = ["derive"] }
 serde_json = "1.0.64"
 lazy_static = "1.4.0"
-backoff = { version = "0.2.1", features = ["tokio"] }
+backoff = { version = "0.3.0", features = ["tokio"] }
 futures = "0.3.14"
 async-trait = "0.1.50"
 chrono = { version = "0.4.19", features = ["serde"] }
