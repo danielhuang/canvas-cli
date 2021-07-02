@@ -131,7 +131,7 @@ dependencies = [
  "serde_json",
  "serde_path_to_error",
  "structopt",
- "tokio 1.7.1",
+ "tokio 1.8.0",
  "toml",
  "toml_edit",
 ]
@@ -483,16 +483,16 @@ dependencies = [
  "http",
  "indexmap",
  "slab",
- "tokio 1.7.1",
+ "tokio 1.8.0",
  "tokio-util",
  "tracing",
 ]
 
 [[package]]
 name = "hashbrown"
-version = "0.9.1"
+version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7afe4a420e3fe79967a00898cc1f4db7c8a49a9333a29f8a4bd76a253d5cd04"
+checksum = "ab5ef0d4909ef3724cc8cce6ccc8572c5c817592e9285f5464f8e86f8bd3726e"
 
 [[package]]
 name = "heck"
@@ -564,7 +564,7 @@ dependencies = [
  "itoa",
  "pin-project-lite 0.2.7",
  "socket2",
- "tokio 1.7.1",
+ "tokio 1.8.0",
  "tower-service",
  "tracing",
  "want",
@@ -579,7 +579,7 @@ dependencies = [
  "bytes 1.0.1",
  "hyper",
  "native-tls",
- "tokio 1.7.1",
+ "tokio 1.8.0",
  "tokio-native-tls",
 ]
 
@@ -602,9 +602,9 @@ checksum = "ce23b50ad8242c51a442f3ff322d56b02f08852c77e4c0b4d3fd684abc89c683"
 
 [[package]]
 name = "indexmap"
-version = "1.6.2"
+version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "824845a0bf897a9042383849b02c1bc219c2383772efcd5c6f9766fa4b81aef3"
+checksum = "bc633605454125dec4b66843673f01c7df2b89479b32e0ed634e43a91cff62a5"
 dependencies = [
  "autocfg",
  "hashbrown",
@@ -1139,7 +1139,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_urlencoded",
- "tokio 1.7.1",
+ "tokio 1.8.0",
  "tokio-native-tls",
  "url",
  "wasm-bindgen",
@@ -1413,9 +1413,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.7.1"
+version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5fb2ed024293bb19f7a5dc54fe83bf86532a44c12a2bb8ba40d64a4509395ca2"
+checksum = "570c2eb13b3ab38208130eccd41be92520388791207fde783bda7c1e8ace28d4"
 dependencies = [
  "autocfg",
  "bytes 1.0.1",
@@ -1449,7 +1449,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f7d995660bd2b7f8c1568414c1126076c13fbb725c40112dc0120b78eb9b717b"
 dependencies = [
  "native-tls",
- "tokio 1.7.1",
+ "tokio 1.8.0",
 ]
 
 [[package]]
@@ -1463,7 +1463,7 @@ dependencies = [
  "futures-sink",
  "log",
  "pin-project-lite 0.2.7",
- "tokio 1.7.1",
+ "tokio 1.8.0",
 ]
 
 [[package]]
@@ -1571,9 +1571,9 @@ dependencies = [
 
 [[package]]
 name = "unicode-segmentation"
-version = "1.7.1"
+version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb0d2e7be6ae3a5fa87eed5fb451aff96f2573d2694942e40543ae0bbe19c796"
+checksum = "8895849a949e7845e06bd6dc1aa51731a103c42707010a5b591c0038fb73385b"
 
 [[package]]
 name = "unicode-width"
