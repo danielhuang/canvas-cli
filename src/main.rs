@@ -284,6 +284,7 @@ async fn run_todo(config: &config::Config, show_all: bool) -> Result<()> {
     let now = Local::now();
 
     let mut next_assignment = None;
+    let mut next_submission = None;
     let mut locked_count = 0;
 
     for (course, assignment) in all_assignments {
@@ -322,7 +323,10 @@ async fn run_todo(config: &config::Config, show_all: bool) -> Result<()> {
                             println!("  {}", assignment.html_url);
                             println!();
                             if due > now && submission.submitted_at.is_none() {
-                                next_assignment = Some(assignment);
+                                next_assignment = Some(assignment.clone());
+                                if assignment.submission_types != ["none"] {
+                                    next_submission = Some(assignment);
+                                }
                             }
                         }
                     }
@@ -348,6 +352,13 @@ async fn run_todo(config: &config::Config, show_all: bool) -> Result<()> {
         println!(
             "Next assignment is due in {}",
             format_duration(now, next_assignment.due_at.unwrap())
+        )
+    };
+
+    if let Some(next_submission) = next_submission {
+        println!(
+            "Next submission is due in {}",
+            format_duration(now, next_submission.due_at.unwrap())
         )
     };
 
