@@ -40,7 +40,7 @@ fn decode_json<T: DeserializeOwned>(x: &[u8]) -> Result<T> {
 
 async fn fetch<T: DeserializeOwned>(config: &config::Config, url: &str) -> Result<T> {
     Ok((|| async {
-        Ok(decode_json(
+        decode_json(
             &CLIENT
                 .get(
                     Url::from_str(&config.canvas_url)
@@ -62,7 +62,7 @@ async fn fetch<T: DeserializeOwned>(config: &config::Config, url: &str) -> Resul
                 .map_err(Error::Permanent)?,
         )
         .wrap_err_with(|| eyre!("Unable to parse {}", url))
-        .map_err(Error::Permanent)?)
+        .map_err(Error::Permanent)
     })
     .retry(ExponentialBackoff {
         initial_interval: Duration::from_millis(10),
@@ -211,7 +211,7 @@ async fn run_exclude(assignment_id: i64) -> Result<()> {
 
     File::create(config_path())
         .await?
-        .write_all(&doc.to_string().as_bytes())
+        .write_all(doc.to_string().as_bytes())
         .await?;
 
     println!("Assignment {} excluded successfully.", assignment_id);
@@ -225,7 +225,7 @@ async fn run_todo(config: &config::Config, show_all: bool) -> Result<()> {
         .wrap(
             "Loading course list",
             fetch(
-                &config,
+                config,
                 "/api/v1/courses?enrollment_state=active&per_page=10000",
             ),
         )
@@ -288,7 +288,7 @@ async fn run_todo(config: &config::Config, show_all: bool) -> Result<()> {
 
     for (course, assignment) in all_assignments {
         if let Some(due) = assignment.due_at {
-            if show_all || should_show(&config, &assignment) {
+            if show_all || should_show(config, &assignment) {
                 if let Some(points) = assignment.points_possible {
                     if let Some(submission) = &assignment.submission {
                         if config.hide_locked && assignment.locked_for_user {
