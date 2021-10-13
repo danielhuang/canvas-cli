@@ -155,14 +155,19 @@ fn format_submission(assignment: &CanvasAssignment, points: f64) -> String {
         .submission_types
         .iter()
         .map(|x| match x.as_str() {
-            "online_text_entry" => "Text entry",
-            "online_upload" => "File upload",
-            "online_quiz" => "Quiz",
-            "discussion_topic" => "Discussion",
-            "media_recording" => "Media recording",
-            "external_tool" => "External tool",
-            "none" => "No submission",
-            _ => "Unknown",
+            "none" => "No submission".to_string(),
+            x => {
+                let text = match x {
+                    "online_text_entry" => "Text entry",
+                    "online_upload" => "File upload",
+                    "online_quiz" => "Quiz",
+                    "discussion_topic" => "Discussion",
+                    "media_recording" => "Media recording",
+                    "external_tool" => "External tool",
+                    _ => "Unknown",
+                };
+                text.purple().to_string()
+            }
         });
     let types: Vec<_> = types.collect();
     let types = types.join(", ");
