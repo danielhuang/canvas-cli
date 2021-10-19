@@ -17,7 +17,7 @@ futures = "0.3.17"
 async-trait = "0.1.51"
 chrono = { version = "0.4.19", features = ["serde"] }
 colored = "2.0.0"
-structopt = "0.3.23"
+structopt = "0.3.25"
 dirs = "4.0.0"
 toml = "0.5.8"
 color-eyre = "0.5.11"
