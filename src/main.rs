@@ -150,7 +150,8 @@ fn should_show(config: &config::Config, assignment: &CanvasAssignment) -> bool {
     true
 }
 
-fn format_submission(assignment: &CanvasAssignment, points: f64) -> String {
+fn process_submission(assignment: &CanvasAssignment, points: f64) -> (String, bool) {
+    let mut online_submission = false;
     let types = assignment
         .submission_types
         .iter()
@@ -167,12 +168,13 @@ fn format_submission(assignment: &CanvasAssignment, points: f64) -> String {
                     "external_tool" => "External tool",
                     _ => "Unknown",
                 };
+                online_submission = true;
                 text.purple().to_string()
             }
         });
     let types: Vec<_> = types.collect();
     let types = types.join(", ");
-    format!("{} - {} points", types, points)
+    (format!("{} - {} points", types, points), online_submission)
 }
 
 fn colorize(i: usize, s: &str) -> impl Display {
@@ -320,17 +322,18 @@ async fn run_todo(config: &config::Config, show_all: bool) -> Result<()> {
                                 )
                                 .underline()
                             );
+                            let (submission_text, online_submission) =
+                                process_submission(&assignment, points);
                             println!(
                                 "  {} {}",
                                 assignment.name.trim(),
-                                format!("({})", format_submission(&assignment, points))
-                                    .bright_black()
+                                format!("({})", submission_text).bright_black()
                             );
                             println!("  {}", assignment.html_url);
                             println!();
                             if due > now && submission.submitted_at.is_none() {
                                 next_assignment = Some(assignment.clone());
-                                if assignment.submission_types != ["none"] {
+                                if online_submission {
                                     next_submission = Some(assignment);
                                 }
                             }
@@ -363,7 +366,7 @@ async fn run_todo(config: &config::Config, show_all: bool) -> Result<()> {
 
     if let Some(next_submission) = next_submission {
         println!(
-            "Next submission is due in {}",
+            "Next online submission is due in {}",
             format_duration(now, next_submission.due_at.unwrap())
         )
     };
