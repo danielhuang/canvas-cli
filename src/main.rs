@@ -156,6 +156,7 @@ fn format_submission(assignment: &CanvasAssignment, points: f64) -> String {
         .iter()
         .map(|x| match x.as_str() {
             "none" => "No submission".to_string(),
+            "on_paper" => "On paper".to_string(),
             x => {
                 let text = match x {
                     "online_text_entry" => "Text entry",
