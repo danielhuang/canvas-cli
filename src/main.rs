@@ -15,12 +15,12 @@ use lazy_static::lazy_static;
 use progress::Progress;
 use reqwest::Url;
 use serde::de::DeserializeOwned;
+use std::time::Duration;
 use std::{
     cmp::{max, min},
     collections::HashMap,
     str::FromStr,
 };
-use std::{fmt::Display, time::Duration};
 use structopt::StructOpt;
 use tokio::{
     fs::{read_to_string, File},
@@ -177,13 +177,13 @@ fn process_submission(assignment: &CanvasAssignment, points: f64) -> (String, bo
     (format!("{} - {} points", types, points), online_submission)
 }
 
-fn colorize(i: usize, s: &str) -> impl Display {
+fn colorize(i: usize, s: &str) -> String {
     [s.blue(), s.yellow(), s.purple(), s.cyan()]
         .iter()
         .cycle()
         .nth(i)
         .unwrap()
-        .to_owned()
+        .to_string()
 }
 
 #[tokio::main]
@@ -248,12 +248,6 @@ async fn run_todo(config: &config::Config, show_all: bool) -> Result<()> {
         })
         .collect();
     all_courses.sort_by_key(|x| x.name.clone());
-    let order_map: HashMap<_, _> = all_courses
-        .iter()
-        .map(|x| x.id)
-        .enumerate()
-        .map(|(i, x)| (x, i))
-        .collect();
     let all_assignments = try_join_all(all_courses.into_iter().map(|x| {
         let progress = &progress;
         async move {
@@ -295,6 +289,18 @@ async fn run_todo(config: &config::Config, show_all: bool) -> Result<()> {
     let mut next_submission = None;
     let mut locked_count = 0;
 
+    let mut color_id = 0;
+    let mut courses_color: HashMap<i64, String> = HashMap::new();
+    let mut get_course_color = |id: i64, name: &str| {
+        if let Some(s) = courses_color.get(&id) {
+            return s.to_string();
+        }
+        let s = colorize(color_id, name);
+        courses_color.insert(id, s.to_string());
+        color_id += 1;
+        s
+    };
+
     for (course, assignment) in all_assignments {
         if let Some(due) = assignment.due_at {
             if show_all || should_show(config, &assignment) {
@@ -313,7 +319,7 @@ async fn run_todo(config: &config::Config, show_all: bool) -> Result<()> {
                                         format_datetime(due).bold()
                                     },
                                     format_duration_full(now, due),
-                                    colorize(order_map[&course.id], &course.name),
+                                    get_course_color(course.id, &course.name),
                                     if submission.submitted_at.is_some() {
                                         " (completed)".white()
                                     } else {
