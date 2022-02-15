@@ -10,6 +10,8 @@ pub struct Config {
     #[serde(default)]
     pub hide_overdue_after_days: Option<i64>,
     #[serde(default)]
+    pub hide_overdue_without_submission: bool,
+    #[serde(default)]
     pub exclude: Vec<Exclusion>,
     #[serde(default)]
     pub include: Vec<Inclusion>,

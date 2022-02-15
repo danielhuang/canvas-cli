@@ -137,6 +137,12 @@ fn should_show(config: &config::Config, assignment: &CanvasAssignment) -> bool {
                 return false;
             }
         }
+        if config.hide_overdue_without_submission {
+            let (_, submission) = process_submission(assignment, 0.0);
+            if !submission && (Local::now() > due) {
+                return false;
+            }
+        }
     }
 
     if let Some(submission) = &assignment.submission {
