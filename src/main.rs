@@ -4,7 +4,7 @@ mod progress;
 
 use crate::api::{CanvasAssignment, CanvasCourse};
 use crate::config::Exclusion;
-use backoff::{future::FutureOperation as _, Error, ExponentialBackoff};
+use backoff::{future::retry, Error, ExponentialBackoff};
 use chrono::{DateTime, Local};
 use color_eyre::eyre::WrapErr;
 use color_eyre::{eyre::eyre, Result, Section};
@@ -39,36 +39,38 @@ fn decode_json<T: DeserializeOwned>(x: &[u8]) -> Result<T> {
 }
 
 async fn fetch<T: DeserializeOwned>(config: &config::Config, url: &str) -> Result<T> {
-    Ok((|| async {
-        decode_json(
-            &CLIENT
-                .get(
-                    Url::from_str(&config.canvas_url)
-                        .unwrap()
-                        .join(url)
-                        .unwrap(),
-                )
-                .header("Authorization", format!("Bearer {}", config.token))
-                .send()
-                .await
-                .wrap_err_with(|| eyre!("Unable to fetch {}", url))?
-                .error_for_status()
-                .wrap_err("Server returned error")
-                .suggestion("Make sure your credentials are valid")
-                .map_err(Error::Permanent)?
-                .bytes()
-                .await
-                .wrap_err("Failed to read data from server")
-                .map_err(Error::Permanent)?,
-        )
-        .wrap_err_with(|| eyre!("Unable to parse {}", url))
-        .map_err(Error::Permanent)
-    })
-    .retry(ExponentialBackoff {
-        initial_interval: Duration::from_millis(10),
-        max_elapsed_time: Some(Duration::from_secs(3)),
-        ..Default::default()
-    })
+    Ok((retry(
+        ExponentialBackoff {
+            initial_interval: Duration::from_millis(10),
+            max_elapsed_time: Some(Duration::from_secs(3)),
+            ..Default::default()
+        },
+        || async {
+            decode_json(
+                &CLIENT
+                    .get(
+                        Url::from_str(&config.canvas_url)
+                            .unwrap()
+                            .join(url)
+                            .unwrap(),
+                    )
+                    .header("Authorization", format!("Bearer {}", config.token))
+                    .send()
+                    .await
+                    .wrap_err_with(|| eyre!("Unable to fetch {}", url))?
+                    .error_for_status()
+                    .wrap_err("Server returned error")
+                    .suggestion("Make sure your credentials are valid")
+                    .map_err(Error::Permanent)?
+                    .bytes()
+                    .await
+                    .wrap_err("Failed to read data from server")
+                    .map_err(Error::Permanent)?,
+            )
+            .wrap_err_with(|| eyre!("Unable to parse {}", url))
+            .map_err(Error::Permanent)
+        },
+    ))
     .await?)
 }
 
