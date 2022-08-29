@@ -238,7 +238,7 @@ pub struct CanvasCourse {
     pub name: String,
     pub account_id: i64,
     pub uuid: String,
-    pub start_at: String,
+    pub start_at: Option<String>,
     pub grading_standard_id: Value,
     pub is_public: Option<bool>,
     pub created_at: String,
