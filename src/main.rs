@@ -39,7 +39,7 @@ fn decode_json<T: DeserializeOwned>(x: &[u8]) -> Result<T> {
 }
 
 async fn fetch<T: DeserializeOwned>(config: &config::Config, url: &str) -> Result<T> {
-    Ok((|| async {
+    (|| async {
         decode_json(
             &CLIENT
                 .get(
@@ -69,7 +69,7 @@ async fn fetch<T: DeserializeOwned>(config: &config::Config, url: &str) -> Resul
         max_elapsed_time: Some(Duration::from_secs(3)),
         ..Default::default()
     })
-    .await?)
+    .await
 }
 
 fn format_time(time: DateTime<Local>) -> String {
