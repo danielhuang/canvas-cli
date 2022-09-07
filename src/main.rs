@@ -6,7 +6,7 @@ use crate::api::{CanvasAssignment, CanvasCourse};
 use crate::config::Exclusion;
 use backoff::{future::FutureOperation as _, Error, ExponentialBackoff};
 use chrono::{DateTime, Local};
-use color_eyre::eyre::WrapErr;
+use color_eyre::eyre::{ContextCompat, WrapErr};
 use color_eyre::{eyre::eyre, Result, Section};
 use colored::Colorize;
 use config::{config_path, Inclusion};
@@ -215,8 +215,9 @@ async fn run_exclude(assignment_id: i64) -> Result<()> {
     let mut doc: Document = old_config.parse()?;
 
     doc["exclude"]
+        .or_insert(toml_edit::Item::ArrayOfTables(ArrayOfTables::default()))
         .as_array_of_tables_mut()
-        .unwrap_or(&mut ArrayOfTables::default())
+        .wrap_err("`exclude` is not an array of tables")?
         .append({
             let mut t = Table::new();
             t["assignment_id"] = value(assignment_id);
