@@ -184,7 +184,7 @@ fn process_submission(assignment: &CanvasAssignment, points: f64) -> (String, bo
 }
 
 fn colorize(i: usize, s: &str) -> String {
-    [s.blue(), s.yellow(), s.purple(), s.cyan()]
+    [s.blue(), s.yellow(), s.purple(), s.cyan(), s.red()]
         .iter()
         .cycle()
         .nth(i)
