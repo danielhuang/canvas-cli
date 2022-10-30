@@ -35,7 +35,7 @@ impl Progress {
             .map(|x| x.1)
             .cloned()
             .collect();
-        self.bar.set_message(&messages.join(", "));
+        self.bar.set_message(messages.join(", "));
         self.bar.set_length(messages.len() as _);
     }
 
