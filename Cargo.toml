@@ -18,7 +18,7 @@ async-trait = "0.1.66"
 chrono = { version = "0.4.24", features = ["serde"] }
 colored = "2.0.0"
 structopt = "0.3.26"
-dirs = "4.0.0"
+dirs = "5.0.0"
 toml = "0.5.11"
 color-eyre = "0.6.2"
 toml_edit = "0.2.1"
