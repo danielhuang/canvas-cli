@@ -1,21 +1,24 @@
-mod api;
+mod canvas_api;
 mod config;
+mod gradescope;
 mod progress;
 
-use crate::api::{CanvasAssignment, CanvasCourse};
+use crate::canvas_api::{CanvasAssignment, CanvasCourse};
 use crate::config::Exclusion;
-use backoff::{future::FutureOperation as _, Error, ExponentialBackoff};
 use chrono::{DateTime, Local};
 use color_eyre::eyre::{ContextCompat, WrapErr};
 use color_eyre::{eyre::eyre, Result, Section};
 use colored::Colorize;
 use config::{config_path, Inclusion};
 use futures::future::try_join_all;
+use gradescope::{
+    load_assignments_for_course, load_courses, GradescopeAssignment, GradescopeCourse,
+};
 use lazy_static::lazy_static;
 use progress::Progress;
 use reqwest::Url;
 use serde::de::DeserializeOwned;
-use std::time::Duration;
+use std::cmp::Reverse;
 use std::{
     cmp::{max, min},
     collections::HashMap,
@@ -39,37 +42,26 @@ fn decode_json<T: DeserializeOwned>(x: &[u8]) -> Result<T> {
 }
 
 async fn fetch<T: DeserializeOwned>(config: &config::Config, url: &str) -> Result<T> {
-    (|| async {
-        decode_json(
-            &CLIENT
-                .get(
-                    Url::from_str(&config.canvas_url)
-                        .unwrap()
-                        .join(url)
-                        .unwrap(),
-                )
-                .header("Authorization", format!("Bearer {}", config.token))
-                .send()
-                .await
-                .wrap_err_with(|| eyre!("Unable to fetch {}", url))?
-                .error_for_status()
-                .wrap_err("Server returned error")
-                .suggestion("Make sure your credentials are valid")
-                .map_err(Error::Permanent)?
-                .bytes()
-                .await
-                .wrap_err("Failed to read data from server")
-                .map_err(Error::Permanent)?,
-        )
-        .wrap_err_with(|| eyre!("Unable to parse {}", url))
-        .map_err(Error::Permanent)
-    })
-    .retry(ExponentialBackoff {
-        initial_interval: Duration::from_millis(10),
-        max_elapsed_time: Some(Duration::from_secs(3)),
-        ..Default::default()
-    })
-    .await
+    decode_json(
+        &CLIENT
+            .get(
+                Url::from_str(&config.canvas_url)
+                    .unwrap()
+                    .join(url)
+                    .unwrap(),
+            )
+            .header("Authorization", format!("Bearer {}", config.token))
+            .send()
+            .await
+            .wrap_err_with(|| eyre!("Unable to fetch {}", url))?
+            .error_for_status()
+            .wrap_err("Server returned error")
+            .suggestion("Make sure your credentials are valid")?
+            .bytes()
+            .await
+            .wrap_err("Failed to read data from server")?,
+    )
+    .wrap_err_with(|| eyre!("Unable to parse {}", url))
 }
 
 fn format_time(time: DateTime<Local>) -> String {
@@ -77,19 +69,19 @@ fn format_time(time: DateTime<Local>) -> String {
 }
 
 fn format_datetime(datetime: DateTime<Local>) -> String {
-    let today = Local::now().date();
+    let today = Local::now().date_naive();
     let time = format_time(datetime);
 
-    if datetime.date() == today {
+    if datetime.date_naive() == today {
         format!("today at {}", time)
-    } else if datetime.date() == today.succ() {
+    } else if today.succ_opt() == Some(datetime.date_naive()) {
         format!("tomorrow at {}", time)
-    } else if (0..7).contains(&(datetime.date() - today).num_days()) {
-        format!("this {} at {}", datetime.date().format("%A"), time)
-    } else if (7..14).contains(&(datetime.date() - today).num_days()) {
-        format!("next {} at {}", datetime.date().format("%A"), time)
+    } else if (0..7).contains(&(datetime.date_naive() - today).num_days()) {
+        format!("this {} at {}", datetime.date_naive().format("%A"), time)
+    } else if (7..14).contains(&(datetime.date_naive() - today).num_days()) {
+        format!("next {} at {}", datetime.date_naive().format("%A"), time)
     } else {
-        format!("on {} at {}", datetime.date().format("%b %d"), time)
+        format!("on {} at {}", datetime.date_naive().format("%b %d"), time)
     }
 }
 
@@ -100,7 +92,7 @@ fn format_duration(a: DateTime<Local>, b: DateTime<Local>) -> String {
     } else if b - a < chrono::Duration::hours(48) {
         format!("{} hours", (b - a).num_hours())
     } else {
-        format!("{} days", (b.date() - a.date()).num_days())
+        format!("{} days", (b.date_naive() - a.date_naive()).num_days())
     }
 }
 
@@ -124,32 +116,46 @@ enum Opt {
     Exclude { assignment_id: i64 },
 }
 
-fn should_show(config: &config::Config, assignment: &CanvasAssignment) -> bool {
-    if config.include.contains(&Inclusion::ByAssignmentId {
-        assignment_id: assignment.id,
-    }) {
-        return true;
+fn should_show(config: &config::Config, assignment: &Assignment) -> bool {
+    if let Some(id) = assignment.assignment_id() {
+        if config
+            .include
+            .contains(&Inclusion::ByAssignmentId { assignment_id: id })
+        {
+            return true;
+        }
     }
 
-    if let Some(due) = assignment.due_at {
+    if let Some(due) = assignment.due_at() {
         if let Some(overdue_offset) = config.hide_overdue_after_days {
             if (Local::now() - due).num_days() > overdue_offset {
                 return false;
             }
         }
-        if config.hide_overdue_without_submission {
-            let (_, submission) = process_submission(assignment, 0.0);
-            if !submission && (Local::now() > due) {
-                return false;
+        match assignment {
+            Assignment::Canvas(_, assignment) => {
+                if config.hide_overdue_without_submission {
+                    let (_, submission) = process_submission(assignment, 0.0);
+                    if !submission && (Local::now() > due) {
+                        return false;
+                    }
+                }
+            }
+            Assignment::Gradescope(_, assignment) => {
+                if assignment.submitted {
+                    return false;
+                }
             }
         }
     }
 
-    if let Some(submission) = &assignment.submission {
-        if !(submission.submitted_at.is_none()
-            || assignment.peer_reviews && submission.discussion_entries.len() < 2)
-        {
-            return false;
+    if let Assignment::Canvas(_, assignment) = assignment {
+        if let Some(submission) = &assignment.submission {
+            if !(submission.submitted_at.is_none()
+                || assignment.peer_reviews && submission.discussion_entries.len() < 2)
+            {
+                return false;
+            }
         }
     }
 
@@ -234,66 +240,63 @@ async fn run_exclude(assignment_id: i64) -> Result<()> {
     Ok(())
 }
 
+#[derive(Debug)]
+enum Assignment {
+    Canvas(CanvasCourse, CanvasAssignment),
+    Gradescope(GradescopeCourse, GradescopeAssignment),
+}
+
+impl Assignment {
+    fn assignment_id(&self) -> Option<i64> {
+        match self {
+            Assignment::Canvas(_, a) => Some(a.id),
+            Assignment::Gradescope(_, _) => None,
+        }
+    }
+
+    fn due_at(&self) -> Option<DateTime<Local>> {
+        match self {
+            Assignment::Canvas(_, a) => a.due_at,
+            Assignment::Gradescope(_, a) => a.due_at,
+        }
+    }
+}
+
 async fn run_todo(config: &config::Config, show_all: bool) -> Result<()> {
     let progress = Progress::new();
-    let mut all_courses: Vec<CanvasCourse> = progress
-        .wrap(
-            "Loading course list",
-            fetch(
-                config,
-                "/api/v1/courses?enrollment_state=active&per_page=10000",
-            ),
-        )
-        .await?;
-    all_courses = all_courses
+
+    let (canvas_assignments, gradescope_assignments) = tokio::try_join!(
+        load_canvas(&progress, config),
+        load_gradescope(&progress, config),
+    )?;
+
+    let mut all_assignments: Vec<_> = gradescope_assignments
         .into_iter()
-        .filter(|x| {
-            !config.exclude.iter().any(|y| match y {
-                Exclusion::ByClassId { class_id } => class_id == &x.id,
-                _ => false,
-            })
-        })
+        .flat_map(|(c, a)| a.into_iter().map(move |x| (c.clone(), x)))
+        .map(|(c, a)| Assignment::Gradescope(c, a))
+        .chain(
+            canvas_assignments
+                .into_iter()
+                .flat_map(|(c, a)| a.into_iter().map(move |x| (c.clone(), x)))
+                .map(|(c, a)| Assignment::Canvas(c, a)),
+        )
         .collect();
-    all_courses.sort_by_key(|x| x.name.clone());
-    let all_assignments = try_join_all(all_courses.into_iter().map(|x| {
-        let progress = &progress;
-        async move {
-            progress
-                .wrap(
-                    &format!("Loading assignments for {}", x.name),
-                    fetch::<Vec<CanvasAssignment>>(
-                        config,
-                        &format!(
-                            "/api/v1/courses/{}/assignments?per_page=10000&include=submission",
-                            x.id
-                        ),
-                    ),
-                )
-                .await
-                .map(|c| (x, c))
-        }
-    }))
-    .await?;
 
     progress.finish();
 
-    let mut all_assignments: Vec<_> = all_assignments
-        .into_iter()
-        .flat_map(|(c, a)| a.into_iter().map(move |x| (c.clone(), x)))
-        .filter(|(_, a)| {
-            !config.exclude.iter().any(|y| match y {
-                Exclusion::ByAssignmentId { assignment_id } => assignment_id == &a.id,
-                _ => false,
-            })
+    all_assignments.retain(|a| {
+        !config.exclude.iter().any(|x| match a.assignment_id() {
+            Some(id) => x == &Exclusion::ByAssignmentId { assignment_id: id },
+            None => false,
         })
-        .collect();
-    all_assignments.sort_by_key(|x| x.1.due_at);
-    all_assignments.reverse();
+    });
+
+    all_assignments.sort_by_key(|x| Reverse(x.due_at()));
 
     let now = Local::now();
 
-    let mut next_assignment = None;
-    let mut next_submission = None;
+    let mut next_assignment_due_at = None;
+    let mut next_submission_due_at = None;
     let mut locked_count = 0;
 
     let mut color_id = 0;
@@ -308,48 +311,89 @@ async fn run_todo(config: &config::Config, show_all: bool) -> Result<()> {
         s
     };
 
-    for (course, assignment) in all_assignments {
-        if let Some(due) = assignment.due_at {
+    for assignment in all_assignments {
+        if let Some(due) = assignment.due_at() {
             if show_all || should_show(config, &assignment) {
-                if let Some(points) = assignment.points_possible {
-                    if let Some(submission) = &assignment.submission {
-                        if config.hide_locked && assignment.locked_for_user {
-                            locked_count += 1;
-                        } else {
-                            println!(
-                                "{}",
-                                format!(
-                                    "Due {} ({}) - {}{}",
-                                    if due < now {
-                                        format_datetime(due).red().bold()
-                                    } else {
-                                        format_datetime(due).bold()
-                                    },
-                                    format_duration_full(now, due),
-                                    get_course_color(course.id, &course.name),
-                                    if submission.submitted_at.is_some() {
-                                        " (completed)".white()
-                                    } else {
-                                        "".white()
+                match assignment {
+                    Assignment::Canvas(course, assignment) => {
+                        if let Some(points) = assignment.points_possible {
+                            if let Some(submission) = &assignment.submission {
+                                if config.hide_locked && assignment.locked_for_user {
+                                    locked_count += 1;
+                                } else {
+                                    println!(
+                                        "{}",
+                                        format!(
+                                            "Due {} ({}) - {}{}",
+                                            if due < now {
+                                                format_datetime(due).red().bold()
+                                            } else {
+                                                format_datetime(due).bold()
+                                            },
+                                            format_duration_full(now, due),
+                                            get_course_color(course.id, &course.name),
+                                            if submission.submitted_at.is_some() {
+                                                " (completed)".white()
+                                            } else {
+                                                "".white()
+                                            }
+                                        )
+                                        .underline()
+                                    );
+                                    let (submission_text, online_submission) =
+                                        process_submission(&assignment, points);
+                                    println!(
+                                        "  {} {}",
+                                        assignment.name.trim(),
+                                        format!("({})", submission_text).bright_black()
+                                    );
+                                    println!("  {}", assignment.html_url);
+                                    println!();
+                                    if due > now && submission.submitted_at.is_none() {
+                                        if let Some(due_at) = assignment.due_at {
+                                            next_assignment_due_at = Some(due_at);
+                                            if online_submission {
+                                                next_submission_due_at = Some(due_at);
+                                            }
+                                        }
                                     }
-                                )
-                                .underline()
-                            );
-                            let (submission_text, online_submission) =
-                                process_submission(&assignment, points);
-                            println!(
-                                "  {} {}",
-                                assignment.name.trim(),
-                                format!("({})", submission_text).bright_black()
-                            );
-                            println!("  {}", assignment.html_url);
-                            println!();
-                            if due > now && submission.submitted_at.is_none() {
-                                next_assignment = Some(assignment.clone());
-                                if online_submission {
-                                    next_submission = Some(assignment);
                                 }
                             }
+                        }
+                    }
+                    Assignment::Gradescope(course, assignment) => {
+                        println!(
+                            "{}",
+                            format!(
+                                "Due {} ({}) - {}{}",
+                                if due < now {
+                                    format_datetime(due).red().bold()
+                                } else {
+                                    format_datetime(due).bold()
+                                },
+                                format_duration_full(now, due),
+                                get_course_color(course.id, &course.name),
+                                if assignment.submitted {
+                                    " (completed)".white()
+                                } else {
+                                    "".white()
+                                }
+                            )
+                            .underline()
+                        );
+                        println!(
+                            "  {} {}",
+                            assignment.name.trim(),
+                            format!("({})", "Gradescope".purple()).bright_black()
+                        );
+                        if let Some(link) = assignment.link {
+                            println!("  https://www.gradescope.com{}", link);
+                        }
+                        println!();
+
+                        if let Some(due_at) = assignment.due_at {
+                            next_assignment_due_at = Some(due_at);
+                            next_submission_due_at = Some(due_at);
                         }
                     }
                 }
@@ -370,19 +414,90 @@ async fn run_todo(config: &config::Config, show_all: bool) -> Result<()> {
         println!();
     }
 
-    if let Some(next_assignment) = next_assignment {
+    if let Some(next_assignment_due_at) = next_assignment_due_at {
         println!(
             "Next assignment is due in {}",
-            format_duration(now, next_assignment.due_at.unwrap())
+            format_duration(now, next_assignment_due_at)
         )
     };
 
-    if let Some(next_submission) = next_submission {
+    if let Some(next_submission_due_at) = next_submission_due_at {
         println!(
             "Next online submission is due in {}",
-            format_duration(now, next_submission.due_at.unwrap())
+            format_duration(now, next_submission_due_at)
         )
     };
 
     Ok(())
+}
+
+async fn load_canvas(
+    progress: &Progress,
+    config: &config::Config,
+) -> Result<Vec<(CanvasCourse, Vec<CanvasAssignment>)>> {
+    let mut canvas_courses: Vec<CanvasCourse> = progress
+        .wrap(
+            "Loading course list",
+            fetch(
+                config,
+                "/api/v1/courses?enrollment_state=active&per_page=10000",
+            ),
+        )
+        .await?;
+    canvas_courses.retain(|x| {
+        !config.exclude.iter().any(|y| match y {
+            Exclusion::ByClassId { class_id } => class_id == &x.id,
+            _ => false,
+        })
+    });
+    canvas_courses.sort_by_key(|x| x.name.clone());
+    let canvas_assignments = try_join_all(canvas_courses.into_iter().map(|x| {
+        let progress = progress;
+        async move {
+            progress
+                .wrap(
+                    &format!("Loading assignments for {}", x.name),
+                    fetch::<Vec<CanvasAssignment>>(
+                        config,
+                        &format!(
+                            "/api/v1/courses/{}/assignments?per_page=10000&include=submission",
+                            x.id
+                        ),
+                    ),
+                )
+                .await
+                .map(|c| (x, c))
+        }
+    }))
+    .await?;
+    Ok(canvas_assignments)
+}
+
+async fn load_gradescope(
+    progress: &Progress,
+    config: &config::Config,
+) -> Result<Vec<(GradescopeCourse, Vec<GradescopeAssignment>)>> {
+    if config.gradescope_cookie.is_none() {
+        return Ok(vec![]);
+    }
+
+    let gradescope_courses = progress
+        .wrap("Loading Gradescope courses", async move {
+            load_courses(config).await
+        })
+        .await?;
+    let gradescope_assignments: Vec<(GradescopeCourse, Vec<GradescopeAssignment>)> =
+        try_join_all(gradescope_courses.into_iter().map(|x| {
+            let progress = progress;
+            async move {
+                progress
+                    .wrap(&format!("Loading assignments for {}", x.name), async move {
+                        let assignments = load_assignments_for_course(config, x.id).await?;
+                        Ok((x.clone(), assignments)) as Result<_>
+                    })
+                    .await
+            }
+        }))
+        .await?;
+    Ok(gradescope_assignments)
 }

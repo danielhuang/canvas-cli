@@ -8,6 +8,8 @@ pub struct Config {
     pub canvas_url: String,
     pub token: String,
     #[serde(default)]
+    pub gradescope_cookie: Option<String>,
+    #[serde(default)]
     pub hide_overdue_after_days: Option<i64>,
     #[serde(default)]
     pub hide_overdue_without_submission: bool,
@@ -19,7 +21,7 @@ pub struct Config {
     pub hide_locked: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(untagged)]
 pub enum Exclusion {
     ByClassId { class_id: i64 },
