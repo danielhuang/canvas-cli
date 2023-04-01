@@ -388,6 +388,8 @@ async fn run_todo(config: &config::Config, show_all: bool) -> Result<()> {
                         );
                         if let Some(link) = assignment.link {
                             println!("  https://www.gradescope.com{}", link);
+                        } else {
+                            println!("  https://www.gradescope.com/courses/{}", course.id)
                         }
                         println!();
 
