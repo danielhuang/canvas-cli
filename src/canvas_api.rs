@@ -170,7 +170,7 @@ pub struct ExternalToolTagAttributes {
     pub url: String,
     pub new_tab: Option<bool>,
     pub resource_link_id: String,
-    pub external_data: String,
+    pub external_data: Option<String>,
     pub content_type: String,
     pub content_id: i64,
 }
