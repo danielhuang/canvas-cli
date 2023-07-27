@@ -394,8 +394,10 @@ async fn run_todo(config: &config::Config, show_all: bool) -> Result<()> {
                         println!();
 
                         if let Some(due_at) = assignment.due_at {
-                            next_assignment_due_at = Some(due_at);
-                            next_submission_due_at = Some(due_at);
+                            if due_at > now {
+                                next_assignment_due_at = Some(due_at);
+                                next_submission_due_at = Some(due_at);
+                            }
                         }
                     }
                 }
