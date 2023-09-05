@@ -17,7 +17,7 @@ serde_json = "1.0.105"
 lazy_static = "1.4.0"
 futures = "0.3.28"
 async-trait = "0.1.73"
-chrono = { version = "0.4.28", features = ["serde"] }
+chrono = { version = "0.4.29", features = ["serde"] }
 backoff = { version = "0.4.0", features = ["tokio"] }
 colored = "2.0.4"
 structopt = "0.3.26"
