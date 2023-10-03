@@ -22,7 +22,7 @@ backoff = { version = "0.4.0", features = ["tokio"] }
 colored = "2.0.4"
 structopt = "0.3.26"
 dirs = "5.0.1"
-toml = "0.8.1"
+toml = "0.8.2"
 color-eyre = "0.6.2"
 toml_edit = "0.2.1"
 indicatif = "0.15.0"
