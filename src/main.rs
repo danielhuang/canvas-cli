@@ -114,6 +114,8 @@ enum Opt {
     },
     #[structopt(about = "Adds an assignment to the exclusion list")]
     Exclude { assignment_id: i64 },
+    #[structopt(about = "Displays the due date for the next assignment")]
+    NextDue,
 }
 
 fn should_show(config: &config::Config, assignment: &Assignment) -> bool {
@@ -211,6 +213,24 @@ async fn main() -> Result<()> {
         Opt::Exclude { assignment_id } => {
             run_exclude(assignment_id).await?;
         }
+        Opt::NextDue => {
+            let mut all_assignments = load_all_assignments(config).await?;
+
+            all_assignments.retain(|x| x.due_at().is_some());
+            all_assignments.sort_by_key(|x| x.due_at());
+
+            let now = Local::now();
+            for assignment in all_assignments {
+                if should_show(config, &assignment) {
+                    if let Some(due) = assignment.due_at() {
+                        if due > now {
+                            println!("{}", format_duration(now, due));
+                            break;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     Ok(())
@@ -263,35 +283,7 @@ impl Assignment {
 }
 
 async fn run_todo(config: &config::Config, show_all: bool) -> Result<()> {
-    let progress = Progress::new();
-
-    let (canvas_assignments, gradescope_assignments) = tokio::try_join!(
-        load_canvas(&progress, config),
-        load_gradescope(&progress, config),
-    )?;
-
-    let mut all_assignments: Vec<_> = gradescope_assignments
-        .into_iter()
-        .flat_map(|(c, a)| a.into_iter().map(move |x| (c.clone(), x)))
-        .map(|(c, a)| Assignment::Gradescope(c, a))
-        .chain(
-            canvas_assignments
-                .into_iter()
-                .flat_map(|(c, a)| a.into_iter().map(move |x| (c.clone(), x)))
-                .map(|(c, a)| Assignment::Canvas(c, a)),
-        )
-        .collect();
-
-    progress.finish();
-
-    all_assignments.retain(|a| {
-        !config.exclude.iter().any(|x| match a.assignment_id() {
-            Some(id) => x == &Exclusion::ByAssignmentId { assignment_id: id },
-            None => false,
-        })
-    });
-
-    all_assignments.sort_by_key(|x| Reverse(x.due_at()));
+    let all_assignments = load_all_assignments(config).await?;
 
     let now = Local::now();
 
@@ -435,6 +427,40 @@ async fn run_todo(config: &config::Config, show_all: bool) -> Result<()> {
     Ok(())
 }
 
+async fn load_all_assignments(config: &config::Config) -> Result<Vec<Assignment>> {
+    let progress = Progress::new();
+
+    let (canvas_assignments, gradescope_assignments) = tokio::try_join!(
+        load_canvas(&progress, config),
+        load_gradescope(&progress, config),
+    )?;
+
+    let mut all_assignments: Vec<_> = gradescope_assignments
+        .into_iter()
+        .flat_map(|(c, a)| a.into_iter().map(move |x| (c.clone(), x)))
+        .map(|(c, a)| Assignment::Gradescope(c, a))
+        .chain(
+            canvas_assignments
+                .into_iter()
+                .flat_map(|(c, a)| a.into_iter().map(move |x| (c.clone(), x)))
+                .map(|(c, a)| Assignment::Canvas(c, a)),
+        )
+        .collect();
+
+    progress.finish();
+
+    all_assignments.retain(|a| {
+        !config.exclude.iter().any(|x| match a.assignment_id() {
+            Some(id) => x == &Exclusion::ByAssignmentId { assignment_id: id },
+            None => false,
+        })
+    });
+
+    all_assignments.sort_by_key(|x| Reverse(x.due_at()));
+
+    Ok(all_assignments)
+}
+
 async fn load_canvas(
     progress: &Progress,
     config: &config::Config,
@@ -448,30 +474,30 @@ async fn load_canvas(
             ),
         )
         .await?;
+
     canvas_courses.retain(|x| {
         !config.exclude.iter().any(|y| match y {
             Exclusion::ByClassId { class_id } => class_id == &x.id,
             _ => false,
         })
     });
+
     canvas_courses.sort_by_key(|x| x.name.clone());
-    let canvas_assignments = try_join_all(canvas_courses.into_iter().map(|x| {
-        let progress = progress;
-        async move {
-            progress
-                .wrap(
-                    &format!("Loading assignments for {}", x.name),
-                    fetch::<Vec<CanvasAssignment>>(
-                        config,
-                        &format!(
-                            "/api/v1/courses/{}/assignments?per_page=10000&include=submission",
-                            x.id
-                        ),
+
+    let canvas_assignments = try_join_all(canvas_courses.into_iter().map(|x| async move {
+        progress
+            .wrap(
+                &format!("Loading assignments for {}", x.name),
+                fetch::<Vec<CanvasAssignment>>(
+                    config,
+                    &format!(
+                        "/api/v1/courses/{}/assignments?per_page=10000&include=submission",
+                        x.id
                     ),
-                )
-                .await
-                .map(|c| (x, c))
-        }
+                ),
+            )
+            .await
+            .map(|c| (x, c))
     }))
     .await?;
     Ok(canvas_assignments)
@@ -491,16 +517,13 @@ async fn load_gradescope(
         })
         .await?;
     let gradescope_assignments: Vec<(GradescopeCourse, Vec<GradescopeAssignment>)> =
-        try_join_all(gradescope_courses.into_iter().map(|x| {
-            let progress = progress;
-            async move {
-                progress
-                    .wrap(&format!("Loading assignments for {}", x.name), async move {
-                        let assignments = load_assignments_for_course(config, x.id).await?;
-                        Ok((x.clone(), assignments)) as Result<_>
-                    })
-                    .await
-            }
+        try_join_all(gradescope_courses.into_iter().map(|x| async move {
+            progress
+                .wrap(&format!("Loading assignments for {}", x.name), async move {
+                    let assignments = load_assignments_for_course(config, x.id).await?;
+                    Ok((x.clone(), assignments)) as Result<_>
+                })
+                .await
         }))
         .await?;
     Ok(gradescope_assignments)
