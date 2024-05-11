@@ -100,7 +100,7 @@ pub async fn load_assignments_for_course(
                 submitted: texts
                     .iter()
                     .find_map(|&x| {
-                        if x == "Submitted" {
+                        if x == "Submitted" || x == "Ungraded" {
                             Some(true)
                         } else if x == "No Submission" {
                             Some(false)
