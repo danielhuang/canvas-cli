@@ -257,16 +257,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "combine"
-version = "4.6.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba5a308b75df32fe02788e748662718f03fde005016435c444eea572398219fd"
-dependencies = [
- "bytes",
- "memchr",
-]
-
-[[package]]
 name = "console"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -941,12 +931,6 @@ dependencies = [
  "bitflags 2.10.0",
  "libc",
 ]
-
-[[package]]
-name = "linked-hash-map"
-version = "0.5.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0717cef1bc8b636c6e1c1bbdefc09e6322da8a9321966e8928ef80d20f7f770f"
 
 [[package]]
 name = "litemap"
@@ -1939,13 +1923,15 @@ dependencies = [
 
 [[package]]
 name = "toml_edit"
-version = "0.2.1"
+version = "0.23.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dbbdcf4f749dd33b1f1ea19b547bf789d87442ec40767d6015e5e2d39158d69a"
+checksum = "6485ef6d0d9b5d0ec17244ff7eb05310113c3f316f2d14200d4de56b3cb98f8d"
 dependencies = [
- "chrono",
- "combine",
- "linked-hash-map",
+ "indexmap",
+ "toml_datetime",
+ "toml_parser",
+ "toml_writer",
+ "winnow",
 ]
 
 [[package]]
@@ -2515,6 +2501,9 @@ name = "winnow"
 version = "0.7.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "21a0236b59786fed61e2a80582dd500fe61f18b5dca67a4a067d0bc9039339cf"
+dependencies = [
+ "memchr",
+]
 
 [[package]]
 name = "wit-bindgen"
